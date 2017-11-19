@@ -1,2 +1,2 @@
-# Computational Physics
-# (Métodos Computacionas da Física C)
+# LibMetComp
+Computational Physics library
