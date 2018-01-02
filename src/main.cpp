@@ -1,42 +1,82 @@
-#include "MetComp.h"
+#include "array.h"
+#include "metcomp.h"
+#include "timer.h"
+#include <vector>
 
-complex psi0(real);
-real V(real);
+#define N 1000000
+#define M 100000
 
 int main() {
 
-  size_t n_points = 1001;
-  real x1 = -5, x2 = 5;
-  real dt = 1e-5;
+  size_t i, j;
 
-  Line<real> potential(x1, x2, n_points, V);
-  Line<complex> psi(x1, x2, n_points, psi0);
+  //**************************************
 
-  psi.set_y(0, complex(0, 0));
-  psi.set_y(n_points - 1, complex(0, 0));
+  {
+    Timer arrpartimer;
 
-  QuantumSys particle(potential, psi);
+    real V[N];
 
-  psi.debug();
+#pragma omp for
+    for (i = 0; i < M; i++) {
 
-  std::cerr << "SUM = " << particle.integral() << '\n';
-  particle.normalize();
-  std::cerr << "SUM = " << particle.integral() << '\n';
+      real temp = real(i / M);
 
-  while (1) {
-    particle.out_gnuplot();
-    particle.Euler(dt);
-    std::cerr << "SUM = " << particle.integral() << '\n';
-    std::cin.get();
+      for (j = 0; j < N; j++) {
+        V[j] = temp / (j + 1);
+      }
+    }
+
+    arrpartimer.stop();
+
+    std::cerr << "PARALLEL ARRAY TIMER = " << arrpartimer.val() << '\n';
   }
+
+  //**************************************
+
+  {
+    Timer vectimer;
+
+    std::vector<real> V(N);
+
+    for (i = 0; i < M; i++) {
+
+      real temp = real(i / M);
+
+      for (j = 0; j < N; j++) {
+        V[j] = temp / (j + 1);
+      }
+    }
+
+    vectimer.stop();
+
+    std::cerr << "VECTOR TIMER = " << vectimer.val() << '\n';
+  }
+
+  //**************************************
+
+  {
+    Timer arrtimer;
+
+    real V[N];
+
+    for (i = 0; i < M; i++) {
+
+      real temp = real(i / M);
+
+      for (j = 0; j < N; j++) {
+        V[j] = temp / (j + 1);
+      }
+    }
+
+    arrtimer.stop();
+
+    std::cerr << "ARRAY TIMER = " << arrtimer.val() << '\n';
+  }
+
+  //**************************************
+
+  // std::this_thread::sleep_for(std::chrono::seconds(10));
 
   return 0;
 }
-
-complex psi0(real x) {
-  complex y(0, 0);
-  y = exp(-std::pow(x + 1, 2));
-  return y;
-}
-
-real V(real x) { return x * x; }

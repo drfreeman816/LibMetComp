@@ -14,54 +14,60 @@ echo_white() { echo "$(tput setaf 7)$*$(tput setaf 7)"; }
 echo_grey() { echo "$(tput setaf 8)$*$(tput setaf 7)"; }
 echo_red() { echo "$(tput setaf 9)$*$(tput setaf 7)"; }
 
-clear
-clear
-
 # Select parameters
-program="$1"  #
-library="$2"  # MetComp
-compiler="$3" # clang, gcc, intel
-opt="$4"      # Optimization: 0, 1, 2, 3
-plot="$5"
-debug="-debug full"
+program="$1"
+compiler="$2"
+options="$3"
+library="metcomp"
+libs="-fopenmp"
 
-echo_green "Compiling lib$library and $program with $compiler $debug -O$opt"
+clear
+
+echo_green "Compiling lib$library with $compiler $options"
 
 printf '\n'
 echo_purple "Creating directories..."
 mkdir -p obj lib bin
 
-# Compile library
+# Compile headers
 printf '\n'
-echo_purple "Compiling library to object file..."
-if [ $compiler = "gcc" ]; then
-  time g++ -Wall -c -O$opt ./src/$library.cpp -std=c++17 -I ./inc -o ./obj/$library.o
-elif [ $compiler = "clang" ]; then
-  time clang -v -c -O$opt ./src/$library.cpp -std=c++17 -I ./inc -o ./obj/$library.o
-elif [ $compiler = "intel" ]; then
-  time icpc -Wall $debug -c -O$opt ./src/$library.cpp -o ./obj/$library.o
-fi
+echo_purple "Precompiling headers to object files and creating library archive..."
+headers=./inc/*.h
+for header in $headers
+do
+  file=${header##*/}
+  file=${file%.*}
 
-# Generate library file
-printf '\n'
-echo_purple "Generating library archive file..."
-if [ $compiler = "gcc" ] ||  [ $compiler = "intel" ]; then
-  time ar rcs ./lib/lib$library.a ./obj/$library.o
-elif [ $compiler = "clang" ]; then
-  time libtool -static ./obj/$library.o -o ./lib/lib$library.a
-fi
+  printf '\n'
+  echo_cyan "$file"
+
+  time icpc -Wall -c $options ./src/$file.cpp -I ./inc -o ./obj/$file.o
+  ar rcs ./lib/libMetComp.a ./obj/$file.o
+
+  if [ $compiler = "gcc" ]; then
+    time g++ -Wall -c $options -std=c++17 $libs ./src/$file.cpp -I ./inc -o ./obj/$file.o
+    ar rcs ./lib/lib$library.a ./obj/$file.o
+  elif [ $compiler = "clang" ]; then
+    time clang -v -c $options -std=c++17 $libs ./src/$file.cpp -I ./inc -o ./obj/$file.o
+    libtool -static ./obj/$file.o -o ./lib/lib$library.a
+  elif [ $compiler = "intel" ]; then
+    time icpc -Wall -c $options $libs ./src/$file.cpp -I ./inc -o ./obj/$file.o
+    ar rcs ./lib/lib$library.a ./obj/$file.o
+  fi
+
+done
 
 # Compile program and link
 printf '\n'
 if [ $compiler = "gcc" ]; then
   echo_purple "Compiling $program and linking to $library..."
-  time g++ -Wall -O$opt $program.cpp -std=c++17 -I ./inc -L ./lib -static -l$library -o ./bin/$program
+  time g++ -Wall $options -std=c++17 $libs ./src/$program.cpp -I ./inc -L ./lib -static -l$library -o ./bin/$program
 elif [ $compiler = "intel" ]; then
   echo_purple "Compiling $program and linking to $library..."
-  time icpc -Wall $debug -O$opt ./src/$program.cpp -L ./lib -I ./inc ./lib/lib$library.a -o ./bin/$program
+  time icpc -Wall $options $libs -L ./lib -I ./inc ./src/$program.cpp ./lib/lib$library.a -o ./bin/$program
 elif [ $compiler = "clang" ]; then
   echo_purple "Compiling $program to object file..."
-  time clang -v -c $debug -O$opt ./src/$program.cpp -std=c++17 -I ./inc -o ./obj/$program.o
+  time clang -v -c $options -std=c++17 $libs -I ./inc ./src/$program.cpp -o ./obj/$program.o
   echo_purple "Linking $program and $library..."
   time ld -v ./obj/$program.o -framework CoreFoundation -lSystem -L. -l$library -o ./bin/$program
 fi
@@ -70,13 +76,6 @@ fi
 printf '\n'
 echo_purple "Running $program..."
 printf '\n'
-if [[ $plot = "intplot" ]]; then
-  ./bin/$program | gnuplot -p
-elif [[ $plot = "plot" ]]; then
   time ./bin/$program
-  gnuplot -p ./plot/$program.plot
-elif [[ $plot = "" ]]; then
-  time ./bin/$program
-fi
 
 printf '\n'
